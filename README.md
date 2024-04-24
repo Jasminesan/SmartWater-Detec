@@ -1,2 +1,1 @@
-#This Is My IoT Project
-Mini Project IoT
+#This Is My Mini Project IoT
