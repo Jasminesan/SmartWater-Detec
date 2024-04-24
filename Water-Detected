@@ -1,0 +1,126 @@
+/*************************************************************
+
+  This is a simple demo of sending and receiving some data.
+  Be sure to check out other examples!
+ *************************************************************/
+
+/* Fill-in information from Blynk Device Info here */
+#define BLYNK_TEMPLATE_ID           "TMPL6-ehLEpGF"
+#define BLYNK_TEMPLATE_NAME         "Quickstart Template"
+#define BLYNK_AUTH_TOKEN            "HLocjNyZQMuO9r4tv4544y8q9ctBzzY6"
+
+/* Comment this out to disable prints and save space */
+#define BLYNK_PRINT Serial
+#define RelayPin 15
+#define SENSOR 14 
+
+#include <TridentTD_LineNotify.h>
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+const int flowSensorPin = 14;
+const float flowThreshold = 0.5; // Flow rate threshold in L/s
+volatile int flowCount = 0; // Count of pulses from flow sensor
+unsigned long lastFlowTime = 0; // Time of the last pulse
+const unsigned long flowInterval = 1000; // Interval for calculating flow rate (ms)
+
+// Your WiFi credentials.
+// Set password to "" for open networks.
+#define LINE_TOKEN "AD3KSt1A5CNFwwMb1oiL3WzpLkPAPcZtYYp5Bci4qe4"
+char ssid[] = "NongFill";
+char pass[] = "111222333";
+
+BlynkTimer timer;
+
+// This function is called every time the Virtual Pin 0 state changes
+BLYNK_WRITE(V0)
+{
+   int value = param.asInt();
+   Serial.print("Value:" + String(value));
+  if (value == 1) {
+    digitalWrite(RelayPin , HIGH);
+    lcd.setCursor(0, 1);
+    lcd.print("Valve is ON");
+    lcd.clear();
+    LINE.notify("น้ำเปิดอยู่นะ");
+  } else {
+    digitalWrite(RelayPin , LOW);
+    lcd.setCursor(0, 1);
+    lcd.print("Valve is OFF");
+    lcd.clear();
+    LINE.notify("น้ำปิดแล้วจ้า");
+  }
+   Blynk.virtualWrite(V1, value);
+}
+
+// This function is called every time the device is connected to the Blynk.Cloud
+BLYNK_CONNECTED()
+{
+  // Change Web Link Button message to "Congratulations!"
+  Blynk.setProperty(V3, "offImageUrl", "https://static-image.nyc3.cdn.digitaloceanspaces.com/general/fte/congratulations.png");
+  Blynk.setProperty(V3, "onImageUrl",  "https://static-image.nyc3.cdn.digitaloceanspaces.com/general/fte/congratulations_pressed.png");
+  Blynk.setProperty(V3, "url", "https://docs.blynk.io/en/getting-started/what-do-i-need-to-blynk/how-quickstart-device-was-made");
+}
+
+// This function sends Arduino's uptime every second to Virtual Pin 2.
+void myTimerEvent()
+{
+  // You can send any value at any time.
+  // Please don't send more that 10 values per second.
+  Blynk.virtualWrite(V2, millis() / 1000);
+}
+
+void IRAM_ATTR pulseCounter() {
+  flowCount++;
+}
+
+void setup()
+{
+  // Debug console
+  Serial.begin(115200);
+  pinMode(RelayPin, OUTPUT);             // set relay pin to OUTPUT
+  digitalWrite(RelayPin, HIGH);
+  attachInterrupt(digitalPinToInterrupt(flowSensorPin), pulseCounter, RISING);
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+  LINE.setToken(LINE_TOKEN);
+  // You can also specify server:
+  //Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass, "blynk.cloud", 80);
+  //Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass, IPAddress(192,168,1,100), 8080);
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0, 0); 
+  lcd.print("FlowRate:");
+  // Setup a function to be called every second
+  timer.setInterval(1000L, myTimerEvent);
+}
+
+void loop()
+{
+  unsigned long currentTime = millis();
+  
+  if (currentTime - lastFlowTime >= flowInterval) {
+    float flowRate = (float)flowCount / ((currentTime - lastFlowTime) / 1000.0); // Flow rate in pulses per second
+    flowCount = 0; // Reset the flow count
+    lastFlowTime = currentTime; // Update last flow time
+    
+    lcd.setCursor(0, 0); // Set cursor to the first column and second row
+    lcd.print("Flow Rate :"); // Clear the previous flow rate
+    lcd.setCursor(0, 1);
+    lcd.print(flowRate, 2); // Print the current flow rate
+    lcd.print(" L/s "); // Display units
+        if(flowRate > 500){
+             LINE.notify("!!!น้ำไหลผิดปกติรึป่าวคะ!!!"+String(flowRate)+"ลิตร");
+          }
+        else{
+
+        }
+    Blynk.virtualWrite(V4,flowRate);
+  Blynk.run();
+  timer.run();
+  }
+}
